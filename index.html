@@ -1,0 +1,278 @@
+<!DOCTYPE html>
+<html>
+<head>
+	<!-- 
+	This repo is example for Firebase Cloud Messaging. It may help for quick implementation, i implemented fcm scripts after window load for avoid from speed issues. 
+	You can remove jquery, and jquery events, they are just test events. Enjoy!
+	
+	Important notes;
+	Manifest.json and firebase-messaging-sw.js must be in the root folder. 
+	Notification actions are going to only https urls.
+	
+	- Salih TALAY
+	https://github.com/talaysa/fcmSimpleExample
+	-->
+    <title>Firebase Cloud Messaging Example</title>
+	
+    <meta charset=utf-8 />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="shortcut icon" href="https://www.gstatic.com/devrel-devsite/va3a0eb1ff00a004a87e2f93101f27917d794beecfd23556fc6d8627bba2ff3cf/firebase/images/favicon.png">
+
+    <!-- !important Firebase - This Manifest must be in the root. -->
+    <link rel="manifest" href="/manifest.json">
+
+    <!-- Jquery & Styles for showcase events. -->
+    <script src="https://code.jquery.com/jquery-2.2.4.min.js"></script>
+	<link href="https://fonts.googleapis.com/css?family=Farro:400,700&display=swap" rel="stylesheet">
+    <link href='assets/css/style.css' rel='stylesheet' type='text/css'/>
+</head>
+<body>
+<div class="container">
+    <div class="hasNotPushNPermission" style="display: none;">
+        <div class="centeredBox whiteBox">
+            <div class="row text m15">
+                Give permission for get push notifications.
+            </div>
+            <div class="row actionRow">
+                <a href="javascript:void(0)" class="actionButton takePermissionPN">I want!</a>
+            </div>
+        </div>
+    </div>
+    <div class="hasPushNPermission" style="display: none;">
+        <div class="centeredBox whiteBox">
+            <div class="row text m15">
+                Congratulations! You got token from Firebase Cloud Messaging.
+            </div>
+            <div class="row text small bold">
+                You will send push notification with this token via sender.php. Your Token for this browser;
+            </div>
+            <div class="row text small pnToken"></div>
+            <div class="row actionRow">
+                <a href="javascript:void(0)" class="actionButton deletePermissionPN">Remove Permission</a>
+            </div>
+        </div>
+    </div>
+</div>
+<script>
+    //
+    // Check Browser Compatibility for Firebase Cloud Messaging
+    //
+
+    function fcmSupport(){
+        if (self && 'ServiceWorkerGlobalScope' in self) {
+            return (navigator.cookieEnabled && 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window && 'fetch' in window && ServiceWorkerRegistration.prototype.hasOwnProperty('showNotification') && PushSubscription.prototype.hasOwnProperty('getKey'))
+        } else {
+            return ( navigator.cookieEnabled && 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window && 'fetch' in window && ServiceWorkerRegistration.prototype.hasOwnProperty('showNotification') && PushSubscription.prototype.hasOwnProperty('getKey') );
+        }
+    }
+    //console.log(fcmSupport());
+
+    //
+    // Cookie Scripts
+    //
+
+    // Domain Name for Cookie;
+    var cookieDomain = location.hostname.split('.').reverse();
+    if( cookieDomain.length > 2){
+        cookieDomain = cookieDomain[2]+'.'+cookieDomain[1]+'.'+cookieDomain[0]
+    }else{
+        cookieDomain = cookieDomain[1]+'.'+cookieDomain[0]
+    }
+    function setCookie(cname, cvalue, exdays) {
+        var d = new Date();
+        d.setTime(d.getTime() + (exdays * 24 * 60 * 60 * 1000));
+        var expires = "expires="+d.toUTCString();
+        document.cookie = cname + "=" + cvalue + "; domain=."+ cookieDomain +"; " + expires + ";path=/";
+    }
+
+    function getCookie(cname) {
+        var name = cname + "=";
+        var ca = document.cookie.split(';');
+        for(var i = 0; i < ca.length; i++) {
+            var c = ca[i];
+            while (c.charAt(0) == ' ') {
+                c = c.substring(1);
+            }
+            if (c.indexOf(name) == 0) {
+                return c.substring(name.length, c.length);
+            }
+        }
+        return "";
+    }
+
+    //
+    // Load Async Script
+    //
+	
+    function loadAsync(u, c) {
+        var d = document, t = 'script',
+            o = d.createElement(t),
+            s = d.getElementsByTagName(t)[0];
+        o.src = '//' + u;
+        if (c) { o.addEventListener('load', function (e) { c(null, e); }, false); }
+        s.parentNode.insertBefore(o, s);
+    }
+
+
+    //
+    // Firebase Settings
+    //
+	
+	// todo change this base url with yours.
+    var minifiedFirebaseJsFiles = "YOUR BASE URL"+"/assets/js/firebase/firebase-app_messaging-6.3.4.js";
+	
+	// todo get this information from Firebase panel -> General Tab -> Your Apps Section
+    var firebaseConfig = {
+        apiKey: "",
+        authDomain: "",
+        databaseURL: "",
+        projectId: "",
+        storageBucket: "",
+        messagingSenderId: "",
+        appId: ""
+    };
+
+
+    //
+    // Firebase Functions
+    //
+    if(fcmSupport() === true){ // If browser suitable for FCM.
+        window.addEventListener("load", function(){
+            loadAsync(minifiedFirebaseJsFiles, function(){
+                // Initialize Firebase
+                if (!firebase.apps.length) {
+                    window.firebaseConstructor = firebase.initializeApp(firebaseConfig);
+                    window.messaging = firebaseConstructor.messaging();
+
+                    firebaseStarter();
+                }
+            });
+        });
+
+        function firebaseStarter() {
+
+            //
+            // Check User's token
+            //
+
+            messaging.getToken().then(function (token) {
+                if(token === null){
+                    //console.log("Push notification is not allowed.");
+                    $('.hasNotPushNPermission').show();
+                    setCookie("pushNotification", "true", 365);
+                }else{
+                    //console.log("Push notification allowed. User Has Token: ", token);
+                    $('.hasPushNPermission').show();
+                    $('.pnToken').html(token);
+                    setCookie("pushNotification", "false", 365);
+                }
+            }).catch(function(error) {
+                console.log('Error:', error);
+            });
+
+            var body = $('body');
+
+            //
+            // Take Permission with Button
+            //
+
+            body.on('click', '.takePermissionPN', function () {
+                window.messaging.requestPermission().then(function () {
+                    messaging.getToken().then(function (token) {
+                        //console.log("User's Token: ", token);
+                        setCookie("pushNotification", "true", 365);
+                        window.sendTokenToServer(token);
+
+                        $('.hasPushNPermission').slideDown();
+                        $('.hasNotPushNPermission').slideUp();
+                    }).catch(function(error) {
+                        console.log('Error:', error);
+                    });
+                }).catch(function(error) {
+                    //console.log('Unable to get permission to notify.');
+                });
+            });
+
+            //
+            // Send Token after take permission
+            //
+
+            window.sendTokenToServer = function sendTokenToServer(currentToken) {
+                if (!isTokenSentToServer()) {
+                    console.log('Sending token to server...');
+
+                    // TODO(developer): Send the current token to your server/database.
+                    window.setTokenSentToServer(true);
+                } else {
+                    console.log('Token already sent to server so won\'t send it again ' + 'unless it changes');
+                }
+            };
+            window.setTokenSentToServer = function setTokenSentToServer(sent) {
+                window.localStorage.setItem('sentToServer', sent ? '1' : '0');
+            };
+            window.isTokenSentToServer = function isTokenSentToServer() {
+                return window.localStorage.getItem('sentToServer') === '1';
+            }
+
+
+            //
+            // Delete Permission with Button
+            //
+
+            body.on('click', '.deletePermissionPN', function () {
+                window.messaging.getToken().then((currentToken) => {
+                    window.messaging.deleteToken(currentToken).then(() => {
+                        console.log('Token deleted.');
+                        window.setTokenSentToServer(false);
+
+                        // TODO(developer): Delete this token from your server/database.
+
+                        $('.hasPushNPermission').slideUp();
+                        $('.hasNotPushNPermission').slideDown();
+                    }).catch((err) => {
+                        //console.log('Unable to delete token. ', err);
+                    });
+                }).catch((err) => {
+                    //console.log('Error retrieving Instance ID token. ', err);
+                });
+            });
+
+
+            //
+            // If User focused to page. Push notification (FCM ) will use this notification, else will sw (service worker).
+            //
+
+            window.messaging.onMessage(function (payload) {
+                //console.log(payload)
+                const notificationTitle = payload.data.title;
+                const notificationOptions = {
+                    body: payload.data.body,
+                    icon: payload.data.icon,
+                    timestamp: +new Date,
+                    badge: payload.data.badge,
+                    click_action : payload.data.click_action
+                };
+                if (payload.data.image) {
+                    notificationOptions["image"] = payload.data.image;
+                };
+                if (!("Notification" in window)) {
+                    //console.log("This browser does not support desktop notification");
+                }
+                // Let's check whether notification permissions have already been granted
+                else if (Notification.permission === "granted") {
+                    // If it's okay let's create a notification
+                    var notification = new Notification(notificationTitle,notificationOptions);
+                    notification.onclick = function(event) {
+                        event.preventDefault(); // Prevent the browser from focusing the Notification's tab
+                        //console.log('Foreground click, user is in focus to webapp.');
+
+                        notification.close();
+                        window.open(payload.data.click_action, '_blank');
+                    }
+                }
+            });
+        }
+    }
+</script>
+</body>
+</html>

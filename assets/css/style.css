@@ -1,0 +1,37 @@
+body,html{
+    background:#ffcb2b;
+    margin:0;
+    padding:0;
+    font-family: 'Farro', sans-serif;
+}
+.centeredBox{
+    padding: 30px;
+    background: #fff;
+    color:#353535;
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    margin-right: -50%;
+    transform: translate(-50%, -50%);
+    max-width: 550px;
+}
+.m15{
+    margin-bottom: 15px;
+}
+.actionButton{
+    display:inline-block;
+    padding:7px 20px;
+    background:#039be5;
+    color:#fff;
+    text-decoration:none;
+    margin-top:10px;
+}
+.actionRow{
+    text-align:center;
+}
+.small{
+    font-size: 0.8em;
+}
+.bold{
+    font-weight: 700;
+}
